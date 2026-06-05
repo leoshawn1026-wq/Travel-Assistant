@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+<title>🍅 番茄钟</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="light">
+
+  <!-- ===== Title Bar ===== -->
+  <header class="titlebar">
+    <div class="titlebar-drag">
+      <span class="titlebar-icon">🍅</span>
+      <span class="titlebar-text">番茄钟</span>
+    </div>
+    <div class="titlebar-actions">
+      <button class="tb-btn" id="themeToggle" title="切换主题">🌙</button>
+      <button class="tb-btn" id="minimizeBtn" title="最小化">─</button>
+      <button class="tb-btn tb-close" id="closeBtn" title="隐藏到托盘">✕</button>
+    </div>
+  </header>
+
+  <!-- ===== Main Layout ===== -->
+  <div class="app-layout">
+
+    <!-- ============ MAIN CONTENT ============ -->
+    <main class="main-area" id="mainArea">
+
+      <!-- ---- Mode Tabs ---- -->
+      <div class="mode-tabs" id="modeTabs">
+        <button class="mode-tab active" data-mode="pomodoro">🍅 番茄钟</button>
+        <button class="mode-tab" data-mode="shortBreak">☕ 短休息</button>
+        <button class="mode-tab" data-mode="longBreak">🌿 长休息</button>
+      </div>
+
+      <!-- ---- Timer ---- -->
+      <div class="timer-section">
+        <div class="timer-ring">
+          <canvas id="timerCanvas" width="280" height="280"></canvas>
+          <div class="timer-center">
+            <div class="timer-time" id="timerDisplay">25:00</div>
+            <div class="timer-status" id="timerStatus">准备开始</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---- Controls ---- -->
+      <div class="controls">
+        <button class="btn btn-primary" id="primaryBtn">
+          <span class="btn-icon">▶</span>
+          <span>开始</span>
+        </button>
+        <button class="btn btn-icon-only" id="resetBtn" title="重置">↺</button>
+      </div>
+
+      <!-- ---- Session Counter ---- -->
+      <div class="session-track" id="sessionTrack">
+        <span class="session-label">今日番茄</span>
+        <div class="session-dots" id="sessionDots">
+          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <span class="session-count" id="sessionCount">0</span>
+      </div>
+
+      <!-- ---- Current Task ---- -->
+      <div class="current-task" id="currentTask">
+        <span class="ct-label">当前专注</span>
+        <span class="ct-text" id="currentTaskText">—</span>
+      </div>
+
+    </main>
+
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="sidebar" id="sidebar">
+
+      <!-- Sidebar Nav -->
+      <div class="sidebar-nav">
+        <button class="sn-btn active" data-view="todo">📋 待办</button>
+        <button class="sn-btn" data-view="stats">📊 统计</button>
+        <button class="sn-btn" data-view="settings">⚙ 设置</button>
+      </div>
+
+      <!-- ---- VIEW: Todo ---- -->
+      <div class="sidebar-view active" id="viewTodo">
+        <div class="todo-header">
+          <h3>待办事项</h3>
+          <span class="todo-count" id="todoCount">0</span>
+        </div>
+        <div class="todo-input-row">
+          <input type="text" class="todo-input" id="todoInput" placeholder="添加待办…" maxlength="100">
+          <button class="btn btn-small" id="todoAddBtn">+</button>
+        </div>
+        <div class="todo-list" id="todoList">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- ---- VIEW: Statistics ---- -->
+      <div class="sidebar-view" id="viewStats">
+        <h3>统计数据</h3>
+        <div class="stats-cards">
+          <div class="stat-card">
+            <div class="stat-num" id="statToday">0</div>
+            <div class="stat-label">今日番茄</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="statWeek">0</div>
+            <div class="stat-label">本周番茄</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="statTotal">0</div>
+            <div class="stat-label">总番茄数</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num" id="statHours">0</div>
+            <div class="stat-label">专注小时</div>
+          </div>
+        </div>
+
+        <h4 style="margin-top:16px;font-size:13px;color:var(--text-sec);">本周趋势</h4>
+        <div class="week-chart" id="weekChart">
+          <!-- Rendered by JS -->
+        </div>
+
+        <h4 style="margin-top:16px;font-size:13px;color:var(--text-sec);">最近记录</h4>
+        <div class="history-list" id="historyList">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+
+      <!-- ---- VIEW: Settings ---- -->
+      <div class="sidebar-view" id="viewSettings">
+        <h3>设置</h3>
+
+        <div class="settings-group">
+          <div class="setting-row">
+            <label>番茄时长 (分)</label>
+            <input type="number" class="setting-input" id="setPomodoro" min="1" max="120" value="25">
+          </div>
+          <div class="setting-row">
+            <label>短休息 (分)</label>
+            <input type="number" class="setting-input" id="setShortBreak" min="1" max="30" value="5">
+          </div>
+          <div class="setting-row">
+            <label>长休息 (分)</label>
+            <input type="number" class="setting-input" id="setLongBreak" min="1" max="60" value="15">
+          </div>
+          <div class="setting-row">
+            <label>长休息间隔 (个番茄)</label>
+            <input type="number" class="setting-input" id="setLongInterval" min="2" max="10" value="4">
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h4 style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text-sec);">音效</h4>
+          <div class="setting-row">
+            <label>提示音</label>
+            <select class="setting-select" id="setSound">
+              <option value="classic">经典铃声</option>
+              <option value="gentle">轻敲</option>
+              <option value="digital">数字</option>
+              <option value="none">静音</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label>音量</label>
+            <input type="range" class="setting-range" id="setVolume" min="0" max="100" value="80">
+            <span class="range-val" id="volumeVal">80%</span>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h4 style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text-sec);">行为</h4>
+          <label class="setting-toggle">
+            <span>自动开始番茄</span>
+            <input type="checkbox" id="setAutoPomo">
+            <span class="toggle-track"></span>
+          </label>
+          <label class="setting-toggle">
+            <span>自动开始休息</span>
+            <input type="checkbox" id="setAutoBreak">
+            <span class="toggle-track"></span>
+          </label>
+          <label class="setting-toggle">
+            <span>系统通知</span>
+            <input type="checkbox" id="setNotify" checked>
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+
+        <div class="settings-group">
+          <h4 style="font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text-sec);">数据</h4>
+          <button class="btn btn-small btn-danger" id="clearDataBtn">清除所有数据</button>
+        </div>
+
+        <div class="settings-footer">
+          番茄钟 v1.0 &nbsp;·&nbsp; Ctrl+Shift+T 切换窗口
+        </div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- ===== Result Overlay ===== -->
+  <div class="overlay" id="resultOverlay">
+    <div class="result-card">
+      <div class="result-emoji" id="resultEmoji">🎉</div>
+      <div class="result-label" id="resultLabel">番茄完成！</div>
+      <div class="result-title" id="resultTitle">太棒了</div>
+      <div class="result-hint" id="resultHint">专注 25 分钟，休息一下吧</div>
+      <button class="btn" id="resultBtn">继续</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -335,10 +335,10 @@ class ItineraryService:
 必须严格区分「游客热门」和「本地人私藏」，推荐一定要包括本地人才知道的好去处！
 
 必须返回严格JSON格式：
-{
+{{
   "title": "行程标题",
   "items": [
-    {
+    {{
       "time": "09:00",
       "name": "地点名称",
       "type": "attraction|food|transport|rest|local_food|local_spot",
@@ -347,10 +347,10 @@ class ItineraryService:
       "tips": "实用小贴士",
       "is_local": true,
       "local_tip": "本地人才知道的隐藏好店/小众景点，建议..."
-    }
+    }}
   ],
   "summary": "行程总结，80字以内"
-}
+}}
 
 规则：
 - type=local_food：本地人常去的馆子/小吃/苍蝇馆子

@@ -326,7 +326,7 @@ export default function Home() {
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {tripCards.map((item: any) => {
-                const isSample = item.id?.startsWith("s");
+                const isSample = typeof item.id === "string" && item.id.startsWith("s");
                 return (
                   <div key={item.id} className="trip-card">
                     <div

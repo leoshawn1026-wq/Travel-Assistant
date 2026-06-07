@@ -47,7 +47,7 @@ find_free_port() {
     local zombie_pid
     zombie_pid=$(netstat -ano 2>/dev/null | grep -E "[:.]${port} " | grep LISTENING | head -1 | awk '{print $NF}')
     if [ -n "$zombie_pid" ] && [ "$zombie_pid" != "0" ]; then
-      taskkill //F //PID "$zombie_pid" 2>/dev/null || true
+      taskkill //F //PID "$zombie_pid" >/dev/null 2>&1 || true
       sleep 1
       if ! netstat -ano 2>/dev/null | grep -qE "[:.]${port} .*LISTENING"; then
         echo "$port"
@@ -69,7 +69,7 @@ update_backend_env() {
 
   # 更新 PORT
   if grep -q "^PORT=" "$env_file"; then
-    sed -i "s/^PORT=.*/PORT=${backend_port}/" "$env_file"
+    sed -i "s|^PORT=.*|PORT=${backend_port}|" "$env_file"
   else
     echo "PORT=${backend_port}" >> "$env_file"
   fi

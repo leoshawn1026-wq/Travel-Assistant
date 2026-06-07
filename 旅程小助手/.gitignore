@@ -2,30 +2,35 @@
 __pycache__/
 *.py[cod]
 .env
+backend/alembic/versions/*.pyc
 backend/data/
 *.db
-.venv/
 venv/
+.venv/
 
-# Flutter
-mobile/.dart_tool/
-mobile/.flutter-plugins
-mobile/.flutter-plugins-dependencies
-mobile/build/
-mobile/.packages
-mobile/pubspec.lock
+# Node / Next.js
+node_modules/
+web/.next/
+web/out/
+web/build/
 
 # IDE
 .idea/
 .vscode/
 *.iml
 
-# 密钥 - 切勿提交
-*.jks
-*.keystore
-key.properties
-GoogleService-Info.plist
-
 # OS
 .DS_Store
 Thumbs.db
+
+# 密钥
+*.jks
+*.keystore
+key.properties
+
+# Local overrides
+.env.local
+logs/
+
+# Project-specific
+/CLAUDE.md

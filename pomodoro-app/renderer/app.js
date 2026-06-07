@@ -7,12 +7,12 @@
 //  1.  Constants & State
 // ============================================================
 const MODES = ['pomodoro', 'shortBreak', 'longBreak'];
-const MODE_LABELS = { pomodoro: '番茄钟', shortBreak: '短休息', longBreak: '长休息' };
+const MODE_LABELS = { pomodoro: '番茄钟', shortBreak: '短放松', longBreak: '长放松' };
 const MODE_EMOJI = { pomodoro: '🍅', shortBreak: '☕', longBreak: '🌿' };
 const MODE_COLORS = {
-  pomodoro:   { gradient: ['#E84C3D', '#F39C12', '#E84C3D'], shadow: 'rgba(232,76,61,0.25)' },
-  shortBreak: { gradient: ['#27AE60', '#2ECC71'],           shadow: 'rgba(39,174,96,0.20)' },
-  longBreak:  { gradient: ['#3498DB', '#5DADE2'],           shadow: 'rgba(52,152,219,0.20)' },
+  pomodoro:   { gradient: ['#FF5A4F', '#FF7A45', '#FF8FB8'], shadow: 'rgba(255,90,79,0.35)', glow: 'rgba(255,90,79,0.15)' },
+  shortBreak: { gradient: ['#8DE2C4', '#7ED5B8'],           shadow: 'rgba(141,226,196,0.30)', glow: 'rgba(141,226,196,0.12)' },
+  longBreak:  { gradient: ['#5BA0D9', '#7BBDE6'],           shadow: 'rgba(91,160,217,0.30)', glow: 'rgba(91,160,217,0.12)' },
 };
 
 const DEFAULT_CONFIG = {
@@ -135,36 +135,55 @@ function drawRing() {
   const total = config[state.mode] * 60;
   const progress = total > 0 ? 1 - state.timeLeft / total : 0;
   const isDark = document.body.classList.contains('dark');
+  const mc = MODE_COLORS[state.mode];
 
   ctx.clearRect(0, 0, CW, CH);
 
-  // Outer glow
+  // === Outer ambient glow (energy aura) ===
   ctx.save();
   ctx.beginPath();
-  ctx.arc(CX, CY, R + 6, 0, 2 * Math.PI);
-  ctx.shadowColor = 'rgba(0,0,0,0.03)';
-  ctx.shadowBlur = 16;
-  ctx.fillStyle = isDark ? '#1A1A2E' : '#F5F5F7';
+  ctx.arc(CX, CY, R + 16, 0, 2 * Math.PI);
+  ctx.shadowColor = mc.glow;
+  ctx.shadowBlur = 40;
+  ctx.fillStyle = isDark ? 'rgba(0,0,0,0.02)' : 'rgba(255,255,255,0.01)';
   ctx.fill();
   ctx.restore();
 
-  // Track ring
+  // === Track ring gradient background ===
+  ctx.save();
   ctx.beginPath();
   ctx.arc(CX, CY, R, 0, 2 * Math.PI);
-  ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+  const trackGrad = ctx.createLinearGradient(0, 0, CW, CH);
+  trackGrad.addColorStop(0, isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)');
+  trackGrad.addColorStop(1, isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)');
+  ctx.strokeStyle = trackGrad;
   ctx.lineWidth = LINE_W;
   ctx.lineCap = 'round';
   ctx.stroke();
+  ctx.restore();
 
-  // Progress arc
+  // === Progress arc with dual glow layers ===
   if (progress > 0) {
     const start = -Math.PI / 2;
     const end = start + 2 * Math.PI * progress;
-    const mc = MODE_COLORS[state.mode];
 
+    // Outer glow trail
     ctx.save();
     ctx.shadowColor = mc.shadow;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = 24;
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, start, end);
+    ctx.strokeStyle = getGradient(state.mode);
+    ctx.lineWidth = LINE_W + 4;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.25;
+    ctx.stroke();
+    ctx.restore();
+
+    // Main progress arc
+    ctx.save();
+    ctx.shadowColor = mc.shadow;
+    ctx.shadowBlur = 14;
     ctx.beginPath();
     ctx.arc(CX, CY, R, start, end);
     ctx.strokeStyle = getGradient(state.mode);
@@ -172,16 +191,47 @@ function drawRing() {
     ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();
+
+    // Inner bright highlight
+    ctx.save();
+    ctx.shadowColor = mc.shadow;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(CX, CY, R, start, end);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.5;
+    ctx.stroke();
+    ctx.restore();
   }
 
-  // Tick marks (no save/restore needed per tick — fillStyle is set inline)
+  // === Energy particle dots (tick marks) ===
+  const dotProgress = progress > 0 ? Math.ceil(progress * 12) : 0;
   TICK_POSITIONS.forEach((pos, i) => {
+    const isActive = i < dotProgress;
+    ctx.save();
+
+    // Active dots get a glow bubble
+    if (isActive) {
+      ctx.shadowColor = mc.shadow;
+      ctx.shadowBlur = 12;
+      // Outer glow ring
+      ctx.beginPath();
+      ctx.arc(pos.dx, pos.dy, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fill();
+    }
+
+    // Main dot
+    ctx.shadowBlur = 0;
     ctx.beginPath();
-    ctx.arc(pos.dx, pos.dy, 2.5, 0, 2 * Math.PI);
-    ctx.fillStyle = progress > 0 && i / 12 <= progress
-      ? 'rgba(232,76,61,0.25)'
-      : isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
+    ctx.arc(pos.dx, pos.dy, isActive ? 3.5 : 2.5, 0, 2 * Math.PI);
+    ctx.fillStyle = isActive
+      ? getGradient(state.mode)
+      : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)';
     ctx.fill();
+    ctx.restore();
   });
 }
 
@@ -198,10 +248,12 @@ function updateUI() {
   timerDisplay.textContent = formatTime(state.timeLeft);
   const labels = {
     idle: '准备开始',
-    running: state.mode === 'pomodoro' ? '专注中……' : '休息中……',
+    running: state.mode === 'pomodoro' ? '专注中……' : '放松中……',
     paused: '已暂停',
   };
   timerStatus.textContent = labels[state.status] || '';
+
+  document.body.classList.toggle('running', state.status === 'running');
 
   const btnCfg = {
     running: { icon: '⏸', text: '暂停' },
@@ -373,13 +425,13 @@ function onTimerComplete() {
     saveHistory();
     saveState();
 
-    sendNotification('🍅 番茄完成！', '专注 25 分钟，该休息一下了！');
+    sendNotification('🍅 番茄搞定！', '专注 25 分钟，该放松一下了！');
     showResult('pomodoro');
 
     const nextMode = (state.pomodoroCount % config.longInterval === 0) ? 'longBreak' : 'shortBreak';
     setTimeout(() => switchMode(nextMode, config.autoBreak), 600);
   } else {
-    sendNotification('⏰ 休息结束', '该回来继续搬砖了 💪');
+    sendNotification('⏰ 放松结束', '该回来继续搬砖了 💪');
     showResult('break');
     setTimeout(() => switchMode('pomodoro', config.autoPomo), 600);
   }
@@ -392,15 +444,15 @@ function showResult(type) {
   if (type === 'pomodoro') {
     const emojis = ['🎉', '🌟', '🏆', '✨', '🔥', '💪'];
     resultEmoji.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-    resultLabel.textContent = '番茄完成！';
+    resultLabel.textContent = '番茄搞定！';
     const msgs = ['太棒了！', '专注力 MAX！', '又搞定一个！', '效率满满！'];
     resultTitle.textContent = msgs[Math.floor(Math.random() * msgs.length)];
     resultHint.textContent = `专注 25 分钟，起来活动一下吧 🚶`;
   } else {
     resultEmoji.textContent = '☕';
-    resultLabel.textContent = '休息结束';
+    resultLabel.textContent = '放松结束';
     resultTitle.textContent = '该继续搬砖了 💪';
-    resultHint.textContent = '休息好了就回来干大事！';
+    resultHint.textContent = '放松好了就回来干大事！';
   }
   resultOverlay.classList.add('show');
 }
@@ -428,6 +480,21 @@ function switchMode(newMode, autoStart = false) {
   $$('.mode-tab').forEach(tab => {
     tab.classList.toggle('active', tab.dataset.mode === newMode);
   });
+
+  // Slide indicator to active tab
+  const activeTab = document.querySelector('.mode-tab.active');
+  const indicator = document.querySelector('.mode-indicator') || (() => {
+    const el = document.createElement('div');
+    el.className = 'mode-indicator';
+    document.querySelector('.mode-tabs').appendChild(el);
+    return el;
+  })();
+  if (activeTab) {
+    const tabsRect = document.querySelector('.mode-tabs').getBoundingClientRect();
+    const tabRect = activeTab.getBoundingClientRect();
+    indicator.style.width = tabRect.width + 'px';
+    indicator.style.transform = `translateX(${tabRect.left - tabsRect.left}px)`;
+  }
 
   updateUI();
 
@@ -488,11 +555,14 @@ function renderTodos() {
     // Delete
     del.addEventListener('click', (e) => {
       e.stopPropagation();
-      state.todos = state.todos.filter(t => t.id !== todo.id);
-      if (state.currentTask === todo.id) state.currentTask = null;
-      renderTodos();
-      updateCurrentTask();
-      saveState();
+      div.classList.add('removing');
+      setTimeout(() => {
+        state.todos = state.todos.filter(t => t.id !== todo.id);
+        if (state.currentTask === todo.id) state.currentTask = null;
+        renderTodos();
+        updateCurrentTask();
+        saveState();
+      }, 200);
     });
 
     todoList.appendChild(div);
@@ -505,6 +575,9 @@ function addTodo(text) {
   state.todos.unshift({ id: Date.now(), text, done: false });
   renderTodos();
   saveState();
+  // Animate the first (newest) item
+  const firstItem = todoList.querySelector('.todo-item');
+  if (firstItem) firstItem.classList.add('new-item');
   todoInput.value = '';
   todoInput.focus();
 }
@@ -769,7 +842,17 @@ snBtns.forEach(btn => {
     document.querySelector('.sidebar-view.active')?.classList.remove('active');
     const target = sidebarViews[btn.dataset.view];
     if (target) target.classList.add('active');
-    if (btn.dataset.view === 'stats') updateStats();
+    if (btn.dataset.view === 'stats') {
+      updateStats();
+      // Animate week bars after a frame
+      requestAnimationFrame(() => {
+        document.querySelectorAll('.week-bar-fill').forEach(bar => {
+          bar.style.animation = 'none';
+          bar.offsetHeight; // reflow
+          bar.style.animation = 'barGrow 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        });
+      });
+    }
   });
 });
 
@@ -788,6 +871,28 @@ function init() {
   renderTodos();
   updateStats();
   updateUI();
+
+  // Init mode indicator after layout
+  requestAnimationFrame(() => {
+    const activeTab = document.querySelector('.mode-tab.active');
+    if (!activeTab) return;
+    const tabsEl = document.querySelector('.mode-tabs');
+    // Create indicator if it doesn't exist
+    let indicator = document.querySelector('.mode-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.className = 'mode-indicator';
+      tabsEl.appendChild(indicator);
+    }
+    const tabsRect = tabsEl.getBoundingClientRect();
+    const tabRect = activeTab.getBoundingClientRect();
+    indicator.style.width = tabRect.width + 'px';
+    indicator.style.transform = `translateX(${tabRect.left - tabsRect.left}px)`;
+    indicator.style.transition = 'none';
+    // Force reflow then enable transitions
+    indicator.offsetHeight;
+    indicator.style.transition = '';
+  });
 
   if (window.electronAPI) {
     window.electronAPI.getVersion().then(v => {

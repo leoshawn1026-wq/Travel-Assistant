@@ -41,13 +41,10 @@ def _extract_json(text: str) -> str:
 
 class ItineraryService:
     async def generate(self, req: ItineraryRequest) -> ItineraryResponseData:
-        # 1. 从高德获取 POI 参考数据
-        attractions = await amap_service.search_poi(
-            keywords="景点", city=req.destination, limit=5
-        )
-        foods = await amap_service.search_poi(
-            keywords="美食", city=req.destination, limit=5
-        )
+        # 1. 并发获取 POI 参考数据
+        attractions_task = amap_service.search_poi(keywords="景点", city=req.destination, limit=5)
+        foods_task = amap_service.search_poi(keywords="美食", city=req.destination, limit=5)
+        attractions, foods = await asyncio.gather(attractions_task, foods_task)
 
         poi_context = "景点参考：\n"
         for p in attractions:
@@ -80,14 +77,11 @@ class ItineraryService:
         yield {"type": "status", "text": "正在搜索景点和美食数据..."}
         await asyncio.sleep(0.1)
 
-        # 1. 获取 POI 参考（先去做，不阻塞太久）
+        # 1. 并发获取 POI 参考数据
         try:
-            attractions = await amap_service.search_poi(
-                keywords="景点", city=req.destination, limit=5
-            )
-            foods = await amap_service.search_poi(
-                keywords="美食", city=req.destination, limit=5
-            )
+            attractions_task = amap_service.search_poi(keywords="景点", city=req.destination, limit=5)
+            foods_task = amap_service.search_poi(keywords="美食", city=req.destination, limit=5)
+            attractions, foods = await asyncio.gather(attractions_task, foods_task)
         except Exception:
             attractions, foods = [], []
 
@@ -316,15 +310,17 @@ class ItineraryService:
         }
 
     def _parse_item(self, item: dict) -> dict:
+        def s(v, default=""):
+            return v if isinstance(v, str) and v else default
         return {
-            "time": item.get("time", "09:00"),
-            "name": item.get("name", ""),
-            "type": item.get("type", "attraction"),
-            "address": item.get("address", ""),
-            "duration_minutes": item.get("duration_minutes", 60),
-            "tips": item.get("tips", ""),
-            "is_local": item.get("is_local", False),
-            "local_tip": item.get("local_tip", ""),
+            "time": s(item.get("time"), "09:00"),
+            "name": s(item.get("name")),
+            "type": s(item.get("type"), "attraction"),
+            "address": s(item.get("address")),
+            "duration_minutes": item.get("duration_minutes") or 60,
+            "tips": s(item.get("tips")),
+            "is_local": bool(item.get("is_local", False)),
+            "local_tip": s(item.get("local_tip")),
         }
 
     async def _generate_single_day(
@@ -533,15 +529,17 @@ class ItineraryService:
             name = item.get("name", "")
             if not name:
                 continue
+            def s(v, default=""):
+                return v if isinstance(v, str) and v else default
             items.append(ItineraryItem(
-                time=item.get("time", "09:00"),
+                time=s(item.get("time"), "09:00"),
                 name=name,
-                type=item.get("type", "attraction"),
-                address=item.get("address", ""),
-                duration_minutes=item.get("duration_minutes", 60),
-                tips=item.get("tips", ""),
-                is_local=item.get("is_local", False),
-                local_tip=item.get("local_tip", ""),
+                type=s(item.get("type"), "attraction"),
+                address=s(item.get("address")),
+                duration_minutes=item.get("duration_minutes") or 60,
+                tips=s(item.get("tips")),
+                is_local=bool(item.get("is_local", False)),
+                local_tip=s(item.get("local_tip")),
             ))
         return items
 

@@ -41,15 +41,14 @@ class DeepSeekService:
         self._warmed_up = False
 
     async def warmup(self):
-        """启动时预热连接池，避免首次请求慢"""
+        """启动时预热连接池"""
         if self._warmed_up or not self.api_key:
             return
         self._warmed_up = True
         try:
-            async with self._client.stream("GET", f"{self.base_url}/v1/models", timeout=5.0):
-                pass
+            await self._client.get(f"{self.base_url}/v1/models", timeout=5.0)
         except Exception:
-            pass  # 预热失败不影响主流程
+            pass
 
     async def chat(self, messages: list[dict], temperature: float = 0.7) -> dict:
         """非流式对话 — 先查缓存，未命中再调 API"""
@@ -68,6 +67,7 @@ class DeepSeekService:
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
+            "max_tokens": 4096,
         }
         last_error = None
         for attempt in range(2):
@@ -100,24 +100,17 @@ class DeepSeekService:
             str: 每个 token 片段
         完成后 yield 终止标记 "__DONE__"
         """
-        messages = _trim_messages(messages)
-
-        # 1. 查缓存
-        cached = await cache_db.get_cached_response(messages)
-        if cached:
-            for i in range(0, len(cached), 8):
-                yield cached[i:i + 8]
-                await asyncio.sleep(0.005)
+        if not self.api_key:
+            yield self._mock_response(messages)["content"]
             yield "__DONE__"
             return
 
-        # 2. 调 API 流式
-        if not self.api_key:
-            full = self._mock_response(messages)
-            content = full["content"]
-            for i in range(0, len(content), 8):
-                yield content[i:i + 8]
-                await asyncio.sleep(0.01)
+        messages = _trim_messages(messages)
+
+        # 查缓存（缓存只对完整消息列表有效，流式场景较少命中）
+        cached = await cache_db.get_cached_response(messages)
+        if cached:
+            yield cached
             yield "__DONE__"
             return
 
@@ -125,98 +118,46 @@ class DeepSeekService:
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
+            "max_tokens": 4096,
             "stream": True,
-            "max_tokens": 1024,
         }
 
-        full_response = ""
-        last_error = None
-        first_token_time = None
-        stream_start = time.monotonic()
-        last_heartbeat = stream_start
-        HEARTBEAT_INTERVAL = 15.0
-
-        for attempt in range(2):
-            try:
-                async with self._client.stream(
-                    "POST",
-                    f"{self.base_url}/v1/chat/completions",
-                    json=payload,
-                    timeout=httpx.Timeout(30.0, connect=8.0, read=30.0),
-                ) as resp:
-                    resp.raise_for_status()
-                    async for line in resp.aiter_lines():
-                        if not line.startswith("data: "):
-                            if line.strip():
-                                # SSE comment heartbeats from upstream, ignore
-                                pass
-                            await asyncio.sleep(0)
-                            continue
-                        chunk = line[6:].strip()
-                        if chunk == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(chunk)
-                            delta = data.get("choices", [{}])[0].get("delta", {})
-                            token = delta.get("content", "")
-                            if token:
-                                if first_token_time is None:
-                                    first_token_time = time.monotonic()
-                                    elapsed = first_token_time - stream_start
-                                    # 首 token 超时预警（不中断，只记录）
-                                    if elapsed > FIRST_TOKEN_TIMEOUT:
-                                        import logging
-                                        logging.getLogger(__name__).warning(
-                                            f"首 Token 延迟 {elapsed:.1f}s (阈值 {FIRST_TOKEN_TIMEOUT}s)"
-                                        )
-                                full_response += token
-                                yield token
-                                await asyncio.sleep(0)  # 让出事件循环，支持客户端断连检测
-                                # heartbeat：长时间无 token 时保活
-                                now = time.monotonic()
-                                if now - last_heartbeat > HEARTBEAT_INTERVAL:
-                                    last_heartbeat = now
-                        except json.JSONDecodeError:
-                            continue
-                break  # 成功则跳出重试循环
-            except HTTPError as e:
-                last_error = e
-                full_response = ""
-                if attempt == 0:
-                    await asyncio.sleep(1.0)
-                else:
-                    # 两次都失败 → 降级到非流式
-                    import logging
-                    logging.getLogger(__name__).warning(f"流式失败，降级非流式: {e}")
+        # 首 token 超时降级：如果 8s 内没收到首个 token，回退到非流式
+        first_token = True
+        fallback_content = ""
+        try:
+            async with self._client.stream(
+                "POST",
+                f"{self.base_url}/v1/chat/completions",
+                json=payload,
+                timeout=FIRST_TOKEN_TIMEOUT if first_token else None,
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    chunk = line[6:].strip()
+                    if chunk == "[DONE]":
+                        break
                     try:
-                        fallback = await self.chat(messages, temperature)
-                        content = fallback.get("content", "")
-                        for i in range(0, len(content), 8):
-                            yield content[i:i + 8]
-                            await asyncio.sleep(0.005)
-                        yield "__DONE__"
-                    except Exception:
-                        raise
-                    return
-
-        # 3. 写入缓存
-        if full_response:
-            await cache_db.set_cached_response(messages, full_response)
+                        data = json.loads(chunk)
+                        delta = data.get("choices", [{}])[0].get("delta", {})
+                        token = delta.get("content", "")
+                        if token:
+                            if first_token:
+                                first_token = False
+                            yield token
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            # 流式失败，回退到非流式
+            try:
+                fallback = await self.chat(messages, temperature)
+                yield fallback["content"]
+            except Exception:
+                yield "抱歉，AI 服务暂时不可用，请稍后重试。"
 
         yield "__DONE__"
-
-    def _mock_response(self, messages: list[dict]) -> dict:
-        last = messages[-1]["content"] if messages else ""
-        return {
-            "content": json.dumps(
-                {
-                    "mock": True,
-                    "reply": f"【模拟回复】关于「{last[:50]}」的旅行建议已生成。",
-                },
-                ensure_ascii=False,
-            ),
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0},
-        }
 
     async def close(self):
         await self._client.aclose()

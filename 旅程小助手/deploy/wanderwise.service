@@ -1,0 +1,17 @@
+[Unit]
+Description=WanderWise AI Travel Planner
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/wanderwise/backend
+EnvironmentFile=/var/www/wanderwise/backend/.env
+ExecStart=/var/www/wanderwise/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8002
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/www/wanderwise/logs/backend.log
+StandardError=append:/var/www/wanderwise/logs/backend.log
+
+[Install]
+WantedBy=multi-user.target

@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore",  # 忽略 .env 中未声明的字段，避免启动失败
+        extra="ignore",
     )
 
     # DeepSeek API
@@ -17,13 +17,27 @@ class Settings(BaseSettings):
     # 高德地图 Web 服务
     amap_api_key: str = ""
 
+    # JWT 签名密钥（必须独立于 DeepSeek API Key，生产环境务必修改）
+    jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 10080  # 7 天
+
     # 服务
     host: str = "0.0.0.0"
     port: int = 8000
-    debug: bool = True
+    debug: bool = False  # 生产环境必须为 False
 
-    # 数据库（对应 .env 中 DATABASE_PATH）
+    # CORS — 允许的来源，多个用逗号分隔
+    cors_origins: str = "http://localhost:3000,http://localhost:3001"
+
+    # 数据库
     database_path: str = "./data/cache.db"
+
+    # 速率限制（每分钟请求数，0=不限制）
+    rate_limit_per_minute: int = 10
+
+    # API 文档开关
+    openapi_enabled: bool = False  # 生产环境默认关闭
 
 
 settings = Settings()

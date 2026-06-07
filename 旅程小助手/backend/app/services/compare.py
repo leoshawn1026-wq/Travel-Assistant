@@ -74,53 +74,43 @@ class CompareService:
     # ── 共享辅助方法：维度构建（compare 和 compare_stream 共用） ──
 
     def _build_dimensions(self, req: CompareRequest) -> list[str]:
-        """根据用户画像构建所有对比维度列表"""
-        focus_areas = []
-        if req.purpose == "food":
-            focus_areas.extend(["特色美食", "小吃/夜市丰富度", "餐饮卫生"])
-        elif req.purpose == "honeymoon":
-            focus_areas.extend(["浪漫氛围", "酒店品质", "私密性", "拍照打卡"])
-        elif req.purpose == "family":
-            focus_areas.extend(["亲子友好度", "儿童娱乐设施", "安全指数", "住宿舒适度"])
-        elif req.purpose == "culture":
-            focus_areas.extend(["历史文化底蕴", "博物馆/古迹", "当地体验深度"])
-        elif req.purpose == "adventure":
-            focus_areas.extend(["户外活动丰富度", "自然风光", "探险设施"])
-        elif req.purpose == "shopping":
-            focus_areas.extend(["购物体验", "商业区集中度", "特色商品"])
+        """根据用户画像构建对比维度（精简版 ~12 个）"""
+        # 始终保留的核心维度
+        dims = [
+            "预算费用（人均预估）",
+            "最佳旅行季节/气候",
+            "交通便利度",
+        ]
 
+        # 根据旅行目的加 2-3 个重点维度
+        purpose_dims = {
+            "food": ["特色美食体验", "夜市/小吃丰富度"],
+            "honeymoon": ["浪漫氛围", "酒店品质"],
+            "family": ["亲子友好度", "安全指数"],
+            "culture": ["历史文化底蕴", "博物馆/古迹"],
+            "adventure": ["户外活动丰富度", "自然风光"],
+            "shopping": ["购物体验", "特色商品"],
+            "leisure": ["气候舒适度", "放松指数"],
+        }
+        dims.extend(purpose_dims.get(req.purpose, ["当地体验深度"]))
+
+        # 根据同行人加 1 个维度
         if req.with_who == "alone":
-            focus_areas.append("独自旅行友好度")
-        if req.with_who == "couple":
-            focus_areas.append("情侣/蜜月友好度")
-        if req.with_who == "family":
-            if "亲子友好度" not in focus_areas:
-                focus_areas.append("亲子友好度")
-            focus_areas.append("家庭设施完备度")
+            dims.append("独自旅行友好度")
+        elif req.with_who == "couple":
+            dims.append("情侣友好度")
+        elif req.with_who == "family":
+            dims.append("家庭设施完备度")
 
-        if req.purpose == "leisure":
-            focus_areas.extend(["气候舒适度", "放松指数"])
+        # 补充 3 个实用维度
+        dims.extend(["住宿选择", "语言沟通便利度", "景点门票总花费"])
 
-        core_dimensions = [
-            "预算费用（人均预估）", "最佳旅行季节/气候", "交通便利度（大交通+市内）",
-            "住宿选择与品质", "综合消费水平", "语言/沟通便利度",
-        ]
-        extra_dimensions = [
-            "必去景点/核心景区", "特色美食与餐饮", "拍照打卡指数",
-            "夜生活/娱乐丰富度", "自由行难度", "本地体验深度",
-            "旅行旺季人流与拥挤度", "网络/通信便利度", "安全指数",
-            "景点门票总花费预估", "当地导游/解说服务", "购物特色与商业区",
-            "公共交通系统评价", "出租车/网约车价格水平", "医疗便利度",
-            "适合游玩天数推荐", "当地文化习俗与禁忌", "签证/入境便利度",
-            "环保/可持续发展指数", "无障碍设施完善度",
-        ]
-        all_dims = []
+        if req.with_pet:
+            dims.append("宠物友好度")
+
+        # 去重
         seen = set()
-        for d in core_dimensions + focus_areas + extra_dimensions:
-            if d not in seen:
-                all_dims.append(d)
-                seen.add(d)
-        return all_dims
+        return [d for d in dims if not (d in seen or seen.add(d))]
 
     def _format_dimensions(self, all_dims: list[str]) -> str:
         """将维度列表格式化为 prompt 中的 JSON 模板"""
@@ -178,107 +168,33 @@ class CompareService:
 
         # 1. 查询历史对比，构建记忆上下文
         memory_context = ""
-        pet_context = ""
-        if req.with_pet:
-            pet_context = "特别重要：用户会带宠物出行！所有推荐必须考虑宠物友好。\n"
-
         if req.device_id:
-            history = await cache_db.get_comparison_history(req.device_id, limit=5)
-            if history:
-                memory_context = "你的历史对比记录：\n"
-                for h in history:
-                    dests = "、".join(h["destinations"])
-                    chosen = f"，上次选了「{h['chosen']}」" if h.get("chosen") else ""
-                    memory_context += f"- 对比：{dests} | 目的：{h.get('purpose','')} | 预算：{h.get('budget_level','')}{chosen}\n"
+            memory_context = await self._build_memory_context(req)
 
-        # 2. 构建增强 Prompt —— 根据用户画像动态选择维度
+        # 2. 构建 Prompt
         budget_desc = {"low": "经济省钱", "medium": "适中", "high": "高端舒适"}.get(req.budget_level, req.budget_level)
 
-        # 根据用户画像决定重点维度
-        focus_areas = []
-        if req.purpose == "food":
-            focus_areas.extend(["特色美食", "小吃/夜市丰富度", "餐饮卫生"])
-        elif req.purpose == "honeymoon":
-            focus_areas.extend(["浪漫氛围", "酒店品质", "私密性", "拍照打卡"])
-        elif req.purpose == "family":
-            focus_areas.extend(["亲子友好度", "儿童娱乐设施", "安全指数", "住宿舒适度"])
-        elif req.purpose == "culture":
-            focus_areas.extend(["历史文化底蕴", "博物馆/古迹", "当地体验深度"])
-        elif req.purpose == "adventure":
-            focus_areas.extend(["户外活动丰富度", "自然风光", "探险设施"])
-        elif req.purpose == "shopping":
-            focus_areas.extend(["购物体验", "商业区集中度", "特色商品"])
-
-        if req.with_who == "alone":
-            focus_areas.append("独自旅行友好度")
-        if req.with_who == "couple":
-            focus_areas.append("情侣/蜜月友好度")
-        if req.with_who == "family":
-            if "亲子友好度" not in focus_areas:
-                focus_areas.append("亲子友好度")
-            focus_areas.append("家庭设施完备度")
-
-        if req.purpose == "leisure":
-            focus_areas.extend(["气候舒适度", "放松指数"])
-
-        # 去重 + 补充基础维度（扩展专业维度列表）
-        core_dimensions = [
-            "预算费用（人均预估）", "最佳旅行季节/气候", "交通便利度（大交通+市内）",
-            "住宿选择与品质", "综合消费水平", "语言/沟通便利度",
-        ]
-        extra_dimensions = [
-            "必去景点/核心景区", "特色美食与餐饮", "拍照打卡指数",
-            "夜生活/娱乐丰富度", "自由行难度", "本地体验深度",
-            "旅行旺季人流与拥挤度", "网络/通信便利度", "安全指数",
-            "景点门票总花费预估", "当地导游/解说服务", "购物特色与商业区",
-            "公共交通系统评价", "出租车/网约车价格水平", "医疗便利度",
-            "适合游玩天数推荐", "当地文化习俗与禁忌", "签证/入境便利度",
-            "环保/可持续发展指数", "无障碍设施完善度",
-        ]
-        # 核心+重点+额外维度全部展开（不再限制数量上限）
-        all_dims = []
-        seen = set()
-        for d in core_dimensions + focus_areas + extra_dimensions:
-            if d not in seen:
-                all_dims.append(d)
-                seen.add(d)
-
+        all_dims = self._build_dimensions(req)
         dims_list = "\n".join(f'    {{"dimension": "{d}", "values": ["目的地1的值", "目的地2的值", ...], "detail": "详细分析文字"}}' for d in all_dims)
 
-        system_prompt = f"""你是顶级旅行规划师，擅长多维度深度对比分析。
+        system_prompt = f"""你是旅行规划师，擅长多维度对比分析。
 
-根据用户画像（预算、天数、目的、同行人、风格），生成最具针对性的对比数据。
-
-必须返回严格 JSON 格式，rows 数组应包含以下维度（每行一个维度，values长度与目的地数量一致）：
+根据用户画像生成 JSON 对比数据，rows 包含以下维度：
 {{
   "rows": [
 {dims_list}
   ],
-  "recommendation": "综合推荐，200字以内，结合用户画像给出具体理由",
-  "verdict": "一句话最终结论：哪个最适合、为什么",
-  "scores": [
-    {{
-      "destination": "目的地名称",
-      "overall": 4.5,
-      "details": {{
-        "性价比": 4.5,
-        "景点丰富度": 4.0,
-        "美食评分": 5.0,
-        "交通便利": 3.5,
-        "适合度": 4.8
-      }}
-    }}
-  ]
+  "recommendation": "综合推荐，200字以内，结合用户画像给出理由",
+  "verdict": "一句话结论",
+  "scores": [每个目的地 overall 评分(5分制) + details]
 }}
 
 要求：
-- 所有评分用5分制
-- 每个维度的 values 长度必须与目的地数量一致
-- **重点：每个 row 加一个 detail 字段**，给出该维度的详细分析（30-80字，含具体数据对比）
-- 推荐理由必须结合用户的具体画像（预算多少、和谁去、什么目的、是否带宠物、偏好什么）
-- {"如果用户带宠物，必须包含「宠物友好度」维度，评价各目的地对宠物的接纳程度\n" if req.with_pet else ""}
-- 尽量提供具体数据和事实（如预估花费、气候温度等），避免空泛描述
-- 如果季节信息明确，给出该季节各目的地的实际体验"""
+- 评分用5分制，values 长度与目的地数量一致
+- 每个 row 必须包含 detail 字段，30-80字具体分析
+- {"如果用户带宠物，必须包含「宠物友好度」维度\n" if req.with_pet else ""}
+- 推荐理由结合用户的具体画像（预算、同行人、目的、是否带宠物）"""
+
 
         user_prompt = (
             f"对比以下目的地：{dest_str}\n"
@@ -374,100 +290,30 @@ class CompareService:
 
         memory_context = ""
         if req.device_id:
-            history = await cache_db.get_comparison_history(req.device_id, limit=5)
-            if history:
-                memory_context = "你的历史对比记录：\n"
-                for h in history:
-                    dests = "、".join(h["destinations"])
-                    chosen = f"，上次选了「{h['chosen']}」" if h.get("chosen") else ""
-                    memory_context += f"- 对比：{dests} | 目的：{h.get('purpose','')} | 预算：{h.get('budget_level','')}{chosen}\n"
+            memory_context = await self._build_memory_context(req)
 
         budget_desc = {"low": "经济省钱", "medium": "适中", "high": "高端舒适"}.get(req.budget_level, req.budget_level)
 
-        focus_areas = []
-        if req.purpose == "food":
-            focus_areas.extend(["特色美食", "小吃/夜市丰富度", "餐饮卫生"])
-        elif req.purpose == "honeymoon":
-            focus_areas.extend(["浪漫氛围", "酒店品质", "私密性", "拍照打卡"])
-        elif req.purpose == "family":
-            focus_areas.extend(["亲子友好度", "儿童娱乐设施", "安全指数", "住宿舒适度"])
-        elif req.purpose == "culture":
-            focus_areas.extend(["历史文化底蕴", "博物馆/古迹", "当地体验深度"])
-        elif req.purpose == "adventure":
-            focus_areas.extend(["户外活动丰富度", "自然风光", "探险设施"])
-        elif req.purpose == "shopping":
-            focus_areas.extend(["购物体验", "商业区集中度", "特色商品"])
-
-        if req.with_who == "alone":
-            focus_areas.append("独自旅行友好度")
-        if req.with_who == "couple":
-            focus_areas.append("情侣/蜜月友好度")
-        if req.with_who == "family":
-            if "亲子友好度" not in focus_areas:
-                focus_areas.append("亲子友好度")
-            focus_areas.append("家庭设施完备度")
-
-        if req.purpose == "leisure":
-            focus_areas.extend(["气候舒适度", "放松指数"])
-
-        core_dimensions = [
-            "预算费用（人均预估）", "最佳旅行季节/气候", "交通便利度（大交通+市内）",
-            "住宿选择与品质", "综合消费水平", "语言/沟通便利度",
-        ]
-        extra_dimensions = [
-            "必去景点/核心景区", "特色美食与餐饮", "拍照打卡指数",
-            "夜生活/娱乐丰富度", "自由行难度", "本地体验深度",
-            "旅行旺季人流与拥挤度", "网络/通信便利度", "安全指数",
-            "景点门票总花费预估", "当地导游/解说服务", "购物特色与商业区",
-            "公共交通系统评价", "出租车/网约车价格水平", "医疗便利度",
-            "适合游玩天数推荐", "当地文化习俗与禁忌", "签证/入境便利度",
-            "环保/可持续发展指数", "无障碍设施完善度",
-        ]
-        all_dims = []
-        seen = set()
-        for d in core_dimensions + focus_areas + extra_dimensions:
-            if d not in seen:
-                all_dims.append(d)
-                seen.add(d)
-
+        all_dims = self._build_dimensions(req)
         dims_list = "\n".join(f'    {{"dimension": "{d}", "values": ["目的地1的值", "目的地2的值", ...], "detail": "详细分析文字"}}' for d in all_dims)
 
-        system_prompt = f"""你是顶级旅行规划师，擅长多维度深度对比分析。
+        system_prompt = f"""你是旅行规划师，擅长多维度对比分析。
 
-根据用户画像（预算、天数、目的、同行人、风格），生成最具针对性的对比数据。
-
-必须返回严格 JSON 格式，rows 数组应包含以下所有维度（每行一个维度，values长度与目的地数量一致）：
+根据用户画像生成 JSON 对比数据，rows 包含以下所有维度：
 {{
   "rows": [
 {dims_list}
   ],
-  "recommendation": "综合推荐，250字以内，结合用户画像给出具体理由和行程建议",
-  "verdict": "一句话最终结论：哪个最适合、为什么",
-  "scores": [
-    {{
-      "destination": "目的地名称",
-      "overall": 4.5,
-      "details": {{
-        "性价比": 4.5,
-        "景点丰富度": 4.0,
-        "美食评分": 5.0,
-        "交通便利": 3.5,
-        "适合度": 4.8
-      }}
-    }}
-  ]
+  "recommendation": "综合推荐，200字以内，结合用户画像给出理由",
+  "verdict": "一句话结论",
+  "scores": [每个目的地 overall 评分(5分制) + details]
 }}
 
 要求：
-- 所有评分用5分制，评分要给出具体数字，不要空泛
-- 每个维度的 values 长度必须与目的地数量一致
-- **每个 row 必须包含 detail 字段**，给出该维度的深度分析（50-150字），必须包含各目的地的具体数据/事实对比
-- 推荐理由（recommendation）必须详细，结合用户的具体画像（预算多少、和谁去、什么目的、是否带宠物、偏好什么）
+- 评分用5分制，values 长度与目的地数量一致
+- 每个 row 必须包含 detail 字段，30-80字分析
 - {"如果用户带宠物，必须包含「宠物友好度」维度\n" if req.with_pet else ""}
-- 尽量提供具体数据和事实（如预估花费、气候温度等）
-- 如果季节信息明确，给出该季节各目的地的实际体验
-
-请先输出 rows 数组，逐条输出每个维度，最后输出 recommendation/verdict/scores。"""
+- 推荐理由结合用户的具体画像（预算、同行人、目的、是否带宠物）"""
 
         user_prompt = (
             f"对比以下目的地：{dest_str}\n"

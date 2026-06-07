@@ -1,4 +1,4 @@
-"""AI 对话路由 — 非流式 + 流式(SSE) + 多对话持久化"""
+"""AI 对话路由 — 非流式 + 流式(SSE) + 多对话持久化 + 每日额度"""
 import json
 import uuid
 from fastapi import APIRouter, HTTPException, Query
@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.models.schemas import ApiResponse, ChatRequest, ChatResponseData, ChatMessage
 from app.services.deepseek import deepseek_service
 from app.services.cache_db import cache_db
+from app.services.quota import quota_service
 
 router = APIRouter(prefix="/chat", tags=["AI对话"])
 
@@ -17,9 +18,21 @@ async def chat(req: ChatRequest):
     if not req.messages:
         raise HTTPException(status_code=400, detail="messages 不能为空")
 
+    # 每日额度检查
+    device_id = req.device_id
+    if device_id:
+        allowed, used, limit = await quota_service.check(device_id)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail=f"今日免费额度已用完（{used}/{limit}），明天再来吧",
+            )
+
     messages = [{"role": m.role, "content": m.content} for m in req.messages]
     try:
         result = await deepseek_service.chat(messages)
+        if device_id:
+            await quota_service.increment(device_id)
         content = result["content"]
         # 尝试解析 JSON（兼容模拟数据）
         try:
@@ -34,15 +47,31 @@ async def chat(req: ChatRequest):
         return ApiResponse(
             data=ChatResponseData(content=content, usage=result.get("usage"))
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"DeepSeek 调用失败: {str(e)}")
 
 
 @router.post("/stream")
 async def chat_stream(req: ChatRequest):
-    """流式对话 (SSE) — 逐 token 返回，前端逐字展示"""
+    """流式对话 (SSE) — 逐 token 返回，前端逐字展示 + 每日额度"""
     if not req.messages:
         raise HTTPException(status_code=400, detail="messages 不能为空")
+
+    # 每日额度检查
+    device_id = req.device_id
+    if device_id:
+        allowed, used, limit = await quota_service.check(device_id)
+        if not allowed:
+            async def quota_error_gen():
+                yield f"data: {json.dumps({'e': f'今日免费额度已用完（{used}/{limit}），明天再来吧'}, ensure_ascii=False)}\n\n"
+                yield "event: done\ndata: {}\n\n"
+            return StreamingResponse(
+                quota_error_gen(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+            )
 
     messages = [{"role": m.role, "content": m.content} for m in req.messages]
 
@@ -50,9 +79,10 @@ async def chat_stream(req: ChatRequest):
         try:
             async for token in deepseek_service.chat_stream(messages):
                 if token == "__DONE__":
+                    if device_id:
+                        await quota_service.increment(device_id)
                     yield "event: done\ndata: {}\n\n"
                 else:
-                    # SSE 格式: "data: {token}\n\n"
                     yield f"data: {json.dumps({'t': token}, ensure_ascii=False)}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'e': str(e)}, ensure_ascii=False)}\n\n"

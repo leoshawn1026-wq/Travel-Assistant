@@ -1,10 +1,11 @@
-"""目的地对比路由 - 带记忆功能 + 流式 SSE"""
+"""目的地对比路由 - 带记忆功能 + 流式 SSE + 每日额度"""
 import json
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from app.models.schemas import ApiResponse, CompareRequest, CompareHistoryResponse, CompareHistoryItem
 from app.services.compare import compare_service
 from app.services.cache_db import cache_db
+from app.services.quota import quota_service
 
 router = APIRouter(prefix="/compare", tags=["目的地对比"])
 
@@ -14,9 +15,24 @@ async def compare_destinations(req: CompareRequest):
     if len(req.destinations) < 2:
         raise HTTPException(status_code=400, detail="至少需要 2 个目的地")
 
+    # 每日额度检查
+    if req.device_id:
+        allowed, used, limit = await quota_service.check(req.device_id)
+        if not allowed:
+            remaining = await quota_service.get_remaining(req.device_id)
+            raise HTTPException(
+                status_code=429,
+                detail=f"今日免费额度已用完（{used}/{limit}），明天再来吧",
+            )
+
     try:
         result = await compare_service.compare(req)
+        # 消耗额度
+        if req.device_id:
+            await quota_service.increment(req.device_id)
         return ApiResponse(data=result)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"对比生成失败: {str(e)}")
 
@@ -27,11 +43,27 @@ async def compare_destinations_stream(req: CompareRequest):
     if len(req.destinations) < 2:
         raise HTTPException(status_code=400, detail="至少需要 2 个目的地")
 
+    # 每日额度检查（流式在 event_generator 中消耗）
+    if req.device_id:
+        allowed, used, limit = await quota_service.check(req.device_id)
+        if not allowed:
+            async def quota_error_gen():
+                yield f"data: {json.dumps({'type': 'error', 'text': f'今日免费额度已用完（{used}/{limit}），明天再来吧'}, ensure_ascii=False)}\n\n"
+                yield "event: done\ndata: {}\n\n"
+            return StreamingResponse(
+                quota_error_gen(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
+            )
+
     async def event_generator():
         try:
             async for event in compare_service.compare_stream(req):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
                 if event.get("type") == "complete":
+                    # 流成功完成后消耗额度
+                    if req.device_id:
+                        await quota_service.increment(req.device_id)
                     yield "event: done\ndata: {}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'text': str(e)}, ensure_ascii=False)}\n\n"

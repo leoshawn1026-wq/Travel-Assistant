@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'DM Sans',sans-serif;background:#F7F5F0;color:#1a1a18;overflow-x:hidden}
+  nav{display:flex;justify-content:space-between;align-items:center;padding:1.2rem 4rem;background:#F7F5F0;position:sticky;top:0;z-index:100;border-bottom:0.5px solid rgba(0,0,0,0.08)}
+  .logo{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:#1a1a18;letter-spacing:-0.5px}
+  .logo span{color:#2D6A4F}
+  nav ul{list-style:none;display:flex;gap:2rem}
+  nav ul a{text-decoration:none;color:#555;font-size:0.9rem;font-weight:400;transition:color 0.2s}
+  nav ul a:hover{color:#1a1a18}
+  .nav-cta{background:#1a1a18;color:#F7F5F0!important;padding:0.5rem 1.2rem;border-radius:100px;font-weight:500!important;transition:background 0.2s!important}
+  .nav-cta:hover{background:#2D6A4F!important;color:#fff!important}
+
+  /* HERO */
+  .hero{padding:6rem 4rem 4rem;display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center;max-width:1200px;margin:0 auto}
+  .hero-tag{display:inline-flex;align-items:center;gap:6px;background:#E8F5E9;color:#2D6A4F;padding:0.4rem 1rem;border-radius:100px;font-size:0.8rem;font-weight:500;margin-bottom:1.5rem}
+  .hero h1{font-family:'Playfair Display',serif;font-size:3.8rem;line-height:1.1;font-weight:700;color:#1a1a18;margin-bottom:1.5rem}
+  .hero h1 em{font-style:italic;color:#2D6A4F}
+  .hero p{font-size:1.05rem;color:#555;line-height:1.7;margin-bottom:2rem;max-width:480px}
+  .hero-btns{display:flex;gap:1rem;align-items:center}
+  .btn-primary{background:#1a1a18;color:#F7F5F0;padding:0.85rem 2rem;border-radius:100px;text-decoration:none;font-weight:500;font-size:0.95rem;transition:background 0.2s}
+  .btn-primary:hover{background:#2D6A4F}
+  .btn-ghost{color:#1a1a18;font-size:0.9rem;display:flex;align-items:center;gap:6px;text-decoration:none;font-weight:400}
+  .btn-ghost i{font-size:1rem}
+
+  /* HERO VISUAL */
+  .hero-visual{position:relative}
+  .hero-card{background:#fff;border-radius:20px;padding:1.5rem;border:0.5px solid rgba(0,0,0,0.08)}
+  .dest-row{display:flex;align-items:center;justify-content:space-between;padding:0.9rem 0;border-bottom:0.5px solid #f0ede8}
+  .dest-row:last-child{border-bottom:none}
+  .dest-info{display:flex;align-items:center;gap:12px}
+  .dest-flag{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+  .dest-name{font-weight:500;font-size:0.95rem;color:#1a1a18}
+  .dest-sub{font-size:0.78rem;color:#888;margin-top:2px}
+  .match-bar{display:flex;align-items:center;gap:8px}
+  .bar-bg{width:80px;height:6px;background:#f0ede8;border-radius:100px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:100px;background:#2D6A4F}
+  .match-pct{font-size:0.8rem;font-weight:500;color:#2D6A4F}
+  .ai-badge{background:#FAFAF8;border:0.5px solid #E0DDD8;border-radius:12px;padding:0.8rem 1rem;margin-top:1rem;display:flex;align-items:flex-start;gap:10px}
+  .ai-dot{width:8px;height:8px;background:#2D6A4F;border-radius:50%;margin-top:5px;flex-shrink:0}
+  .ai-text{font-size:0.82rem;color:#555;line-height:1.5}
+  .floating-tag{position:absolute;top:-16px;right:20px;background:#2D6A4F;color:#fff;padding:0.5rem 1rem;border-radius:100px;font-size:0.78rem;font-weight:500;display:flex;align-items:center;gap:6px}
+
+  /* STATS */
+  .stats{background:#1a1a18;padding:2.5rem 4rem;display:flex;justify-content:center;gap:6rem}
+  .stat-item{text-align:center}
+  .stat-num{font-family:'Playfair Display',serif;font-size:2.2rem;color:#fff;font-weight:700}
+  .stat-label{font-size:0.82rem;color:#888;margin-top:4px}
+
+  /* FEATURES */
+  .features{padding:6rem 4rem;max-width:1200px;margin:0 auto}
+  .section-label{font-size:0.78rem;font-weight:500;color:#2D6A4F;text-transform:uppercase;letter-spacing:2px;margin-bottom:0.8rem}
+  .section-title{font-family:'Playfair Display',serif;font-size:2.4rem;font-weight:700;color:#1a1a18;margin-bottom:1rem;line-height:1.2}
+  .section-sub{font-size:1rem;color:#777;max-width:500px;line-height:1.7;margin-bottom:3rem}
+  .features-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+  .feature-card{background:#fff;border-radius:16px;padding:1.8rem;border:0.5px solid rgba(0,0,0,0.06);transition:border-color 0.2s}
+  .feature-card:hover{border-color:rgba(45,106,79,0.3)}
+  .feature-icon{width:44px;height:44px;background:#E8F5E9;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem}
+  .feature-icon i{font-size:1.3rem;color:#2D6A4F}
+  .feature-title{font-weight:500;font-size:1rem;color:#1a1a18;margin-bottom:0.5rem}
+  .feature-desc{font-size:0.88rem;color:#777;line-height:1.6}
+  .feature-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:1rem}
+  .ftag{background:#F7F5F0;color:#555;font-size:0.75rem;padding:3px 10px;border-radius:100px}
+
+  /* HOW IT WORKS */
+  .how{background:#fff;padding:6rem 4rem}
+  .how-inner{max-width:1000px;margin:0 auto}
+  .steps{display:grid;grid-template-columns:repeat(4,1fr);gap:2rem;margin-top:3rem;position:relative}
+  .steps::before{content:'';position:absolute;top:28px;left:10%;right:10%;height:1px;background:repeating-linear-gradient(90deg,#ddd 0,#ddd 6px,transparent 6px,transparent 14px);z-index:0}
+  .step{text-align:center;position:relative;z-index:1}
+  .step-num{width:56px;height:56px;border-radius:50%;background:#F7F5F0;border:0.5px solid #ddd;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem;font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;color:#1a1a18}
+  .step-num.active{background:#1a1a18;color:#F7F5F0;border-color:#1a1a18}
+  .step-title{font-weight:500;font-size:0.92rem;color:#1a1a18;margin-bottom:0.4rem}
+  .step-desc{font-size:0.8rem;color:#888;line-height:1.5}
+
+  /* SOCIAL PREVIEW */
+  .social{padding:6rem 4rem;max-width:1200px;margin:0 auto}
+  .cards-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:2.5rem}
+  .trip-card{background:#fff;border-radius:16px;overflow:hidden;border:0.5px solid rgba(0,0,0,0.06)}
+  .trip-img{height:140px;display:flex;align-items:center;justify-content:center;font-size:3rem}
+  .trip-body{padding:1rem 1.2rem}
+  .trip-user{display:flex;align-items:center;gap:8px;margin-bottom:0.6rem}
+  .avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:500;color:#fff}
+  .trip-username{font-size:0.8rem;font-weight:500;color:#555}
+  .trip-title{font-weight:500;font-size:0.92rem;color:#1a1a18;margin-bottom:0.3rem}
+  .trip-meta{font-size:0.78rem;color:#aaa;margin-bottom:0.8rem}
+  .trip-footer{display:flex;gap:1rem;align-items:center}
+  .action-btn{display:flex;align-items:center;gap:4px;font-size:0.78rem;color:#888;cursor:pointer;transition:color 0.2s}
+  .action-btn:hover{color:#2D6A4F}
+  .action-btn i{font-size:0.9rem}
+
+  /* CTA */
+  .cta{background:#1a1a18;padding:6rem 4rem;text-align:center}
+  .cta h2{font-family:'Playfair Display',serif;font-size:3rem;color:#F7F5F0;margin-bottom:1rem;line-height:1.2}
+  .cta h2 em{color:#74C69D;font-style:italic}
+  .cta p{color:#888;font-size:1rem;margin-bottom:2.5rem;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.7}
+  .cta-form{display:flex;gap:0.75rem;justify-content:center;max-width:420px;margin:0 auto}
+  .cta-input{flex:1;background:#2a2a27;border:0.5px solid #444;color:#F7F5F0;padding:0.85rem 1.2rem;border-radius:100px;font-size:0.92rem;outline:none}
+  .cta-input::placeholder{color:#666}
+  .cta-btn{background:#2D6A4F;color:#fff;border:none;padding:0.85rem 1.5rem;border-radius:100px;font-weight:500;cursor:pointer;font-size:0.92rem;white-space:nowrap;transition:background 0.2s}
+  .cta-btn:hover{background:#40916C}
+
+  /* FOOTER */
+  footer{background:#111;padding:2rem 4rem;display:flex;justify-content:space-between;align-items:center}
+  .footer-logo{font-family:'Playfair Display',serif;font-size:1.2rem;color:#F7F5F0}
+  .footer-logo span{color:#74C69D}
+  footer p{font-size:0.78rem;color:#555}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">Wander<span>Wise</span></div>
+  <ul>
+    <li><a href="#">功能</a></li>
+    <li><a href="#">发现</a></li>
+    <li><a href="#">社区</a></li>
+    <li><a href="#">定价</a></li>
+    <li><a href="#" class="nav-cta">免费开始</a></li>
+  </ul>
+</nav>
+
+<section style="background:#F7F5F0">
+  <div class="hero">
+    <div>
+      <div class="hero-tag"><i class="ti ti-sparkles"></i> AI 驱动的旅行决策引擎</div>
+      <h1>不再纠结<br><em>去哪里</em><br>只需出发</h1>
+      <p>WanderWise 用 AI 分析你的旅行偏好，帮你在多个目的地间做出最优决策，并为你量身定制完整旅程方案。</p>
+      <div class="hero-btns">
+        <a href="#" class="btn-primary">免费规划我的旅行 →</a>
+        <a href="#" class="btn-ghost"><i class="ti ti-player-play"></i> 查看演示</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="floating-tag"><i class="ti ti-bolt"></i> AI 正在分析中</div>
+      <div class="hero-card">
+        <p style="font-size:0.78rem;color:#aaa;margin-bottom:0.8rem;font-weight:500;letter-spacing:0.5px">目的地匹配结果</p>
+        <div class="dest-row">
+          <div class="dest-info">
+            <div class="dest-flag" style="background:#FFF3E0">🇯🇵</div>
+            <div><div class="dest-name">东京，日本</div><div class="dest-sub">文化 · 美食 · 都市</div></div>
+          </div>
+          <div class="match-bar"><div class="bar-bg"><div class="bar-fill" style="width:94%"></div></div><span class="match-pct">94%</span></div>
+        </div>
+        <div class="dest-row">
+          <div class="dest-info">
+            <div class="dest-flag" style="background:#E3F2FD">🇰🇷</div>
+            <div><div class="dest-name">首尔，韩国</div><div class="dest-sub">时尚 · 夜生活 · 美食</div></div>
+          </div>
+          <div class="match-bar"><div class="bar-bg"><div class="bar-fill" style="width:87%"></div></div><span class="match-pct">87%</span></div>
+        </div>
+        <div class="dest-row">
+          <div class="dest-info">
+            <div class="dest-flag" style="background:#E8F5E9">🇸🇬</div>
+            <div><div class="dest-name">新加坡</div><div class="dest-sub">现代 · 多元 · 美食</div></div>
+          </div>
+          <div class="match-bar"><div class="bar-bg"><div class="bar-fill" style="width:79%"></div></div><span class="match-pct">79%</span></div>
+        </div>
+        <div class="ai-badge">
+          <div class="ai-dot"></div>
+          <div class="ai-text">根据你的偏好（美食探索、文化体验、预算适中），<strong>东京</strong>是最佳选择。春季赏樱与你的出行时间高度吻合。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="stats">
+  <div class="stat-item"><div class="stat-num">50k+</div><div class="stat-label">规划中的旅行</div></div>
+  <div class="stat-item"><div class="stat-num">120+</div><div class="stat-label">覆盖目的地</div></div>
+  <div class="stat-item"><div class="stat-num">4.9★</div><div class="stat-label">用户评分</div></div>
+  <div class="stat-item"><div class="stat-num">2min</div><div class="stat-label">生成完整方案</div></div>
+</div>
+
+<section class="features">
+  <div class="section-label">核心功能</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:end;margin-bottom:3rem">
+    <div>
+      <div class="section-title">从犹豫不决<br>到胸有成竹</div>
+    </div>
+    <div>
+      <p class="section-sub" style="margin-bottom:0">WanderWise 覆盖旅行决策全链路——从目的地筛选、行程定制，到实时信息查询与社区分享，一站搞定。</p>
+    </div>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon"><i class="ti ti-git-compare"></i></div>
+      <div class="feature-title">AI 目的地对比</div>
+      <div class="feature-desc">输入出行人数、预算与旅行动机，AI 从气候、费用、体验、签证等多维度为你的候选目的地打分排序，告别选择困难。</div>
+      <div class="feature-tags"><span class="ftag">用户画像</span><span class="ftag">多维评分</span><span class="ftag">AI 推荐</span></div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon"><i class="ti ti-route"></i></div>
+      <div class="feature-title">智能行程定制</div>
+      <div class="feature-desc">确定目的地后，AI 立即生成按天排布的完整行程，支持拖拽调整、局部重生、版本回退，导出 PDF 或精美分享图。</div>
+      <div class="feature-tags"><span class="ftag">按天排布</span><span class="ftag">拖拽编辑</span><span class="ftag">导出分享</span></div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon"><i class="ti ti-search"></i></div>
+      <div class="feature-title">旅行信息聚合</div>
+      <div class="feature-desc">在行程页内直接查询酒店推荐、餐厅评分、实时天气，以及机票和火车票价格参考，信息不出页面。</div>
+      <div class="feature-tags"><span class="ftag">酒店/餐厅</span><span class="ftag">天气预报</span><span class="ftag">机票参考</span></div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon"><i class="ti ti-users"></i></div>
+      <div class="feature-title">旅行社区</div>
+      <div class="feature-desc">发现其他旅行者分享的真实行程，一键复制为自己的方案。支持点赞、收藏、评论与好友系统，旅伴匹配功能即将上线。</div>
+      <div class="feature-tags"><span class="ftag">行程模板</span><span class="ftag">好友系统</span><span class="ftag">旅伴匹配</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="how">
+  <div class="how-inner">
+    <div style="text-align:center">
+      <div class="section-label" style="text-align:center">使用流程</div>
+      <div class="section-title" style="text-align:center;margin-bottom:0.5rem">四步，从想法到行程</div>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num active">1</div>
+        <div class="step-title">填写旅行画像</div>
+        <div class="step-desc">告诉我们你的预算、人数、偏好和出行动机</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-title">对比目的地</div>
+        <div class="step-desc">AI 为你的候选城市生成多维对比报告</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-title">生成行程方案</div>
+        <div class="step-desc">确认目的地后，2分钟内获得完整行程</div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-title">分享与出发</div>
+        <div class="step-desc">导出、收藏或分享给好友，随时出发</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="social">
+  <div class="section-label">社区精选</div>
+  <div style="display:flex;justify-content:space-between;align-items:end;margin-bottom:0">
+    <div class="section-title" style="margin-bottom:0">旅行者们<br>正在分享</div>
+    <a href="#" style="font-size:0.88rem;color:#2D6A4F;text-decoration:none;font-weight:500">探索更多 →</a>
+  </div>
+  <div class="cards-row">
+    <div class="trip-card">
+      <div class="trip-img" style="background:#FFF8E1">🏯</div>
+      <div class="trip-body">
+        <div class="trip-user">
+          <div class="avatar" style="background:#2D6A4F">李</div>
+          <span class="trip-username">@lixiaoming</span>
+        </div>
+        <div class="trip-title">东京 7 日深度游</div>
+        <div class="trip-meta">7天 · 2人 · ¥12,000 预算</div>
+        <div class="trip-footer">
+          <span class="action-btn"><i class="ti ti-heart"></i> 284</span>
+          <span class="action-btn"><i class="ti ti-bookmark"></i> 97</span>
+          <span class="action-btn"><i class="ti ti-copy"></i> 使用此行程</span>
+        </div>
+      </div>
+    </div>
+    <div class="trip-card">
+      <div class="trip-img" style="background:#E8F5E9">🌿</div>
+      <div class="trip-body">
+        <div class="trip-user">
+          <div class="avatar" style="background:#1565C0">王</div>
+          <span class="trip-username">@wangfang_travels</span>
+        </div>
+        <div class="trip-title">巴厘岛亲子 5 日</div>
+        <div class="trip-meta">5天 · 4人 · ¥28,000 预算</div>
+        <div class="trip-footer">
+          <span class="action-btn"><i class="ti ti-heart"></i> 156</span>
+          <span class="action-btn"><i class="ti ti-bookmark"></i> 63</span>
+          <span class="action-btn"><i class="ti ti-copy"></i> 使用此行程</span>
+        </div>
+      </div>
+    </div>
+    <div class="trip-card">
+      <div class="trip-img" style="background:#FCE4EC">🗼</div>
+      <div class="trip-body">
+        <div class="trip-user">
+          <div class="avatar" style="background:#AD1457">陈</div>
+          <span class="trip-username">@chenyue_globe</span>
+        </div>
+        <div class="trip-title">巴黎浪漫周末</div>
+        <div class="trip-meta">4天 · 2人 · ¥35,000 预算</div>
+        <div class="trip-footer">
+          <span class="action-btn"><i class="ti ti-heart"></i> 421</span>
+          <span class="action-btn"><i class="ti ti-bookmark"></i> 182</span>
+          <span class="action-btn"><i class="ti ti-copy"></i> 使用此行程</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <h2>你的下一次旅行<br><em>从这里开始</em></h2>
+  <p>加入已经在用 WanderWise 规划旅行的 50,000+ 旅行者，免费开始，无需信用卡。</p>
+  <div class="cta-form">
+    <input class="cta-input" type="email" placeholder="输入你的邮箱">
+    <button class="cta-btn">免费开始 →</button>
+  </div>
+  <p style="font-size:0.78rem;color:#555;margin-top:1rem">✓ 永久免费基础版 &nbsp; ✓ 无广告 &nbsp; ✓ 随时取消</p>
+</section>
+
+<footer>
+  <div class="footer-logo">Wander<span>Wise</span></div>
+  <p>© 2025 WanderWise. 让每次旅行都值得。</p>
+  <div style="display:flex;gap:1.5rem">
+    <a href="#" style="font-size:0.78rem;color:#555;text-decoration:none">关于我们</a>
+    <a href="#" style="font-size:0.78rem;color:#555;text-decoration:none">隐私政策</a>
+    <a href="#" style="font-size:0.78rem;color:#555;text-decoration:none">联系我们</a>
+  </div>
+</footer>
+
+</body>
+</html>

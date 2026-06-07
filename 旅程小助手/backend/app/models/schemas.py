@@ -19,6 +19,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     stream: bool = False
+    device_id: str = Field(default="")  # 设备 ID（用于额度管理）
 
 
 class ChatResponseData(BaseModel):
@@ -94,17 +95,20 @@ class ItineraryRequest(BaseModel):
     pace: str = "moderate"  # relaxed / moderate / intense
     days: int = Field(default=1, ge=1, le=7)
     with_pet: bool = Field(default=False)  # 是否带宠物
+    device_id: str = Field(default="")  # 设备 ID（用于额度管理）
 
 
 class ItineraryItem(BaseModel):
-    time: str
-    name: str
-    type: str  # attraction / food / transport / rest / local_food / local_spot
+    model_config = {"coerce_numbers_to_str": True}
+
+    time: str = ""
+    name: str = ""
+    type: str = "attraction"
     address: str = ""
     duration_minutes: int = 60
     tips: str = ""
-    is_local: bool = False      # 是否是本地人推荐
-    local_tip: str = ""         # 本地人推荐理由
+    is_local: bool = False
+    local_tip: str = ""
 
 
 class Accommodation(BaseModel):

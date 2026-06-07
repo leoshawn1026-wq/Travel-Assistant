@@ -1,54 +1,136 @@
-"""管理后台 API — 统计、内容管理、系统状态"""
+"""管理后台 API — 统计看板 + Token 监控 + 系统状态"""
 import os
 import time
-from fastapi import APIRouter, HTTPException, Query
+from datetime import datetime, timezone, timedelta
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from app.config import settings
 from app.services.cache_db import cache_db
 from app.models.schemas import ApiResponse
+from app.core.database import get_db
+from app.models.user import User
 
 router = APIRouter(prefix="/admin", tags=["管理后台"])
 
+_start_time = time.time()
+
+AVG_TOKENS_PER_CALL = 350  # 每次 AI 调用平均消耗 token 数（含输入+输出）
+
 
 @router.get("/dashboard", response_model=ApiResponse)
-async def admin_dashboard():
+async def admin_dashboard(db: AsyncSession = Depends(get_db)):
     """管理后台首页统计"""
     try:
-        # 统计数据 - 从各个表中获取
-        stats = {
-            "api_status": _check_api_keys(),
+        # 1. 用户统计
+        result = await db.execute(select(func.count(User.id)))
+        total_users = result.scalar() or 0
+
+        # 2. API 调用统计（从 cache_db 的现有表统计）
+        async with aiosqlite.connect(settings.database_path) as cdb:
+            # 对比调用量
+            cursor = await cdb.execute("SELECT COUNT(*) FROM comparison_history")
+            total_comparisons = (await cursor.fetchone())[0] or 0
+
+            cursor = await cdb.execute("SELECT COUNT(*) FROM chat_history WHERE role='assistant'")
+            total_chat_calls = (await cursor.fetchone())[0] or 0
+
+            # 今日数据
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            cursor = await cdb.execute(
+                "SELECT COUNT(*) FROM comparison_history WHERE created_at >= ?", (today,)
+            )
+            today_comparisons = (await cursor.fetchone())[0] or 0
+
+            cursor = await cdb.execute(
+                "SELECT COUNT(*) FROM chat_history WHERE role='assistant' AND created_at >= ?", (today,)
+            )
+            today_chat_calls = (await cursor.fetchone())[0] or 0
+
+            # 近 7 天趋势
+            daily_stats = []
+            for i in range(6, -1, -1):
+                day = (datetime.now(timezone.utc) - timedelta(days=i)).strftime("%Y-%m-%d")
+                next_day = (datetime.now(timezone.utc) - timedelta(days=i - 1)).strftime("%Y-%m-%d") if i > 0 else "9999-12-31"
+
+                cursor = await cdb.execute(
+                    "SELECT COUNT(*) FROM comparison_history WHERE created_at >= ? AND created_at < ?",
+                    (day, next_day),
+                )
+                comps = (await cursor.fetchone())[0] or 0
+
+                cursor = await cdb.execute(
+                    "SELECT COUNT(*) FROM chat_history WHERE role='assistant' AND created_at >= ? AND created_at < ?",
+                    (day, next_day),
+                )
+                chats = (await cursor.fetchone())[0] or 0
+
+                total_calls = comps + chats
+                daily_stats.append({
+                    "date": day,
+                    "comparisons": comps,
+                    "chat_calls": chats,
+                    "total_calls": total_calls,
+                    "estimated_tokens": total_calls * AVG_TOKENS_PER_CALL,
+                })
+
+            # 10 分钟内活跃数
+            ten_min_ago = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+            cursor = await cdb.execute(
+                "SELECT COUNT(DISTINCT device_id) FROM chat_history WHERE created_at >= ?",
+                (ten_min_ago,),
+            )
+            active_users_10m = (await cursor.fetchone())[0] or 0
+
+            cursor = await cdb.execute(
+                "SELECT COUNT(DISTINCT device_id) FROM comparison_history WHERE created_at >= ?",
+                (ten_min_ago,),
+            )
+            active_compare_10m = (await cursor.fetchone())[0] or 0
+
+        # 总调用量
+        total_calls = total_comparisons + total_chat_calls
+        today_calls = today_comparisons + today_chat_calls
+        total_tokens = total_calls * AVG_TOKENS_PER_CALL
+        today_tokens = today_calls * AVG_TOKENS_PER_CALL
+
+        # 估算费用（DeepSeek v4 flash 约 ¥0.5/1M tokens）
+        estimated_cost = total_tokens / 1_000_000 * 0.5
+
+        return ApiResponse(data={
+            # 用户
+            "total_users": total_users,
+            "new_users_today": 0,  # 需要注册时间字段才能统计
+            # 调用量
+            "total_calls": total_calls,
+            "today_calls": today_calls,
+            "total_comparisons": total_comparisons,
+            "total_chat_calls": total_chat_calls,
+            "today_comparisons": today_comparisons,
+            "today_chat_calls": today_chat_calls,
+            # Token
+            "total_tokens": total_tokens,
+            "today_tokens": today_tokens,
+            "estimated_cost": round(estimated_cost, 4),
+            # 实时
+            "active_users_10m": max(active_users_10m, active_compare_10m),
+            "daily_trend": daily_stats,
+            # 系统
+            "api_status": {
+                "deepseek": bool(settings.deepseek_api_key),
+                "amap": bool(settings.amap_api_key),
+            },
             "uptime": _get_uptime(),
-            "total_comparisons": 0,
-            "total_content": 0,
             "db_size": _get_db_size(),
-        }
-
-        # 获取内容数量
-        try:
-            import aiosqlite
-            async with aiosqlite.connect(settings.database_path) as db:
-                cursor = await db.execute("SELECT COUNT(*) FROM travel_content")
-                row = await cursor.fetchone()
-                stats["total_content"] = row[0] if row else 0
-
-                cursor = await db.execute("SELECT COUNT(*) FROM comparison_history")
-                row = await cursor.fetchone()
-                stats["total_comparisons"] = row[0] if row else 0
-
-                cursor = await db.execute("SELECT COUNT(*) FROM chat_history")
-                row = await cursor.fetchone()
-                stats["total_chat_messages"] = row[0] if row else 0
-        except Exception:
-            pass
-
-        return ApiResponse(data=stats)
+        })
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.get("/content", response_model=ApiResponse)
 async def admin_content(
-    source: str = Query("", description="数据来源"),
-    limit: int = Query(default=20, le=100),
+    source: str = "",
+    limit: int = 20,
 ):
     """查看旅行内容缓存"""
     try:
@@ -97,20 +179,13 @@ async def admin_config():
     })
 
 
-def _check_api_keys() -> dict:
-    return {
-        "deepseek": bool(settings.deepseek_api_key),
-        "amap": bool(settings.amap_api_key),
-    }
-
-
-_start_time = time.time()
-
-
 def _get_uptime() -> str:
     elapsed = int(time.time() - _start_time)
-    h, r = divmod(elapsed, 3600)
+    d, r = divmod(elapsed, 86400)
+    h, r = divmod(r, 3600)
     m, s = divmod(r, 60)
+    if d > 0:
+        return f"{d}d {h:02d}:{m:02d}:{s:02d}"
     return f"{h:02d}:{m:02d}:{s:02d}"
 
 
@@ -133,3 +208,7 @@ def _mask_key(key: str) -> str:
     if len(key) <= 8:
         return key[:2] + "***"
     return key[:6] + "****" + key[-4:]
+
+
+# Lazy import to avoid circular imports
+import aiosqlite

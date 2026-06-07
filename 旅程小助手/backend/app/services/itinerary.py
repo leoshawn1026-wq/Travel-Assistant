@@ -224,7 +224,7 @@ class ItineraryService:
         previous_days = 0
         is_multi_day = req.days > 1
 
-        async for token in deepseek_service.chat_stream(messages, temperature=0.6):
+        async for token in deepseek_service.chat_stream(messages, temperature=0.6, max_tokens=8192):
             if token == "__DONE__":
                 break
             buffer += token
@@ -376,7 +376,7 @@ class ItineraryService:
             {"role": "user", "content": user_prompt},
         ]
 
-        result = await deepseek_service.chat(messages, temperature=0.6)
+        result = await deepseek_service.chat(messages, temperature=0.6, max_tokens=8192, skip_cache=True)
         return self._parse_single_day(result["content"], req)
 
     async def _generate_multi_day(
@@ -445,7 +445,7 @@ class ItineraryService:
             {"role": "user", "content": user_prompt},
         ]
 
-        result = await deepseek_service.chat(messages, temperature=0.6)
+        result = await deepseek_service.chat(messages, temperature=0.6, max_tokens=8192, skip_cache=True)
         return self._parse_multi_day(result["content"], req)
 
     def _parse_single_day(self, content: str, req: ItineraryRequest) -> ItineraryResponseData:

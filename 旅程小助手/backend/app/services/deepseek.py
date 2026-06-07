@@ -50,24 +50,25 @@ class DeepSeekService:
         except Exception:
             pass
 
-    async def chat(self, messages: list[dict], temperature: float = 0.7) -> dict:
+    async def chat(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 4096, skip_cache: bool = False) -> dict:
         """非流式对话 — 先查缓存，未命中再调 API"""
         if not self.api_key:
             return self._mock_response(messages)
 
         messages = _trim_messages(messages)
 
-        # 1. 查缓存
-        cached = await cache_db.get_cached_response(messages)
-        if cached:
-            return {"content": cached, "usage": {"cached": True, "prompt_tokens": 0, "completion_tokens": 0}}
+        # 1. 查缓存（行程生成跳过缓存，确保每次都重新生成）
+        if not skip_cache:
+            cached = await cache_db.get_cached_response(messages)
+            if cached:
+                return {"content": cached, "usage": {"cached": True, "prompt_tokens": 0, "completion_tokens": 0}}
 
         # 2. 调 API（自动重试 1 次）
         payload = {
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": 4096,
+            "max_tokens": max_tokens,
         }
         last_error = None
         for attempt in range(2):
@@ -93,7 +94,7 @@ class DeepSeekService:
 
         return {"content": choice, "usage": usage}
 
-    async def chat_stream(self, messages: list[dict], temperature: float = 0.7):
+    async def chat_stream(self, messages: list[dict], temperature: float = 0.7, max_tokens: int = 4096):
         """流式对话 — 查缓存/调 API + 逐 token 产出 + 首 Token 超时降级
 
         Yields:
@@ -118,7 +119,7 @@ class DeepSeekService:
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": 4096,
+            "max_tokens": max_tokens,
             "stream": True,
         }
 
